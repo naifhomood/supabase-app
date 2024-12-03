@@ -32,10 +32,12 @@ function App() {
 
   useEffect(() => {
     const fetchSession = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-      if (currentSession?.user) {
-        checkAdminStatus(currentSession.user);
+      const { data } = await supabase.auth.getSession();
+      if (data && data.session) {
+        setSession(data.session);
+        if (data.session.user) {
+          checkAdminStatus(data.session.user);
+        }
       }
     };
 
@@ -44,9 +46,14 @@ function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      setSession(currentSession);
-      if (currentSession?.user) {
-        checkAdminStatus(currentSession.user);
+      if (currentSession) {
+        setSession(currentSession);
+        if (currentSession.user) {
+          checkAdminStatus(currentSession.user);
+        }
+      } else {
+        setSession(null);
+        setIsAdmin(false);
       }
     });
 

@@ -33,7 +33,7 @@ const KanbanBoard: React.FC<Props> = ({ themeSettings }) => {
   const [columns, setColumns] = useState<Column[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newColumnTitle, setNewColumnTitle] = useState('');
-  const [newColumnColor, setNewColumnColor] = useState('#e2e8f0');
+  const [newColumnColor, setNewColumnColor] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -116,7 +116,7 @@ const KanbanBoard: React.FC<Props> = ({ themeSettings }) => {
       console.log('Added new column:', newColumn);
       setColumns([...columns, { ...newColumn, tasks: [] }]);
       setNewColumnTitle('');
-      setNewColumnColor('#e2e8f0');
+      setNewColumnColor('');
       setError(null);
     } catch (err) {
       console.error('Error:', err);
@@ -251,7 +251,7 @@ const KanbanBoard: React.FC<Props> = ({ themeSettings }) => {
       
       if (!sourceColumn || !destColumn) return;
 
-      const tasksToUpdate: TaskUpdate[] = [];
+      let tasksToUpdate: TaskUpdate[] = [];
       
       if (source.droppableId === destination.droppableId) {
         const newTasks = Array.from(sourceColumn.tasks);
@@ -262,13 +262,11 @@ const KanbanBoard: React.FC<Props> = ({ themeSettings }) => {
           col.id === sourceColumn.id ? { ...col, tasks: newTasks } : col
         ));
         
-        newTasks.forEach((task, index) => {
-          tasksToUpdate.push({
-            id: task.id,
-            position: index,
-            column_id: sourceColumn.id
-          });
-        });
+        tasksToUpdate = newTasks.map((task, index) => ({
+          id: task.id,
+          position: index,
+          column_id: sourceColumn.id
+        }));
       } else {
         const sourceTasks = Array.from(sourceColumn.tasks);
         const destTasks = Array.from(destColumn.tasks);
@@ -281,21 +279,18 @@ const KanbanBoard: React.FC<Props> = ({ themeSettings }) => {
           return col;
         }));
         
-        sourceTasks.forEach((task, index) => {
-          tasksToUpdate.push({
+        tasksToUpdate = [
+          ...sourceTasks.map((task, index) => ({
             id: task.id,
             position: index,
             column_id: sourceColumn.id
-          });
-        });
-        
-        destTasks.forEach((task, index) => {
-          tasksToUpdate.push({
+          })),
+          ...destTasks.map((task, index) => ({
             id: task.id,
             position: index,
             column_id: destColumn.id
-          });
-        });
+          }))
+        ];
       }
       
       try {
