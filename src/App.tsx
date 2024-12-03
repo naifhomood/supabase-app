@@ -36,25 +36,38 @@ function App() {
     const handleHashParams = async () => {
       try {
         const hash = window.location.hash;
+        console.log('Current hash:', hash);
+        
         if (hash && hash.includes('access_token')) {
+          console.log('Found access_token in hash');
           const params = new URLSearchParams(hash.substring(1));
           const accessToken = params.get('access_token');
           const refreshToken = params.get('refresh_token');
           
           if (accessToken && refreshToken) {
+            console.log('Setting session with tokens');
             const { data: { session: newSession }, error: sessionError } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken
             });
             
-            if (sessionError) throw sessionError;
+            if (sessionError) {
+              console.error('Error setting session:', sessionError);
+              throw sessionError;
+            }
+            
             if (newSession) {
+              console.log('New session established');
               setSession(newSession);
               if (newSession.user) {
+                console.log('Checking admin status for user:', newSession.user.email);
                 await checkAdminStatus(newSession.user);
               }
               // Clear the hash from URL
               window.history.replaceState(null, '', window.location.pathname);
+            } else {
+              console.error('No session returned after setSession');
+              throw new Error('Failed to establish session');
             }
           }
         }
@@ -66,22 +79,37 @@ function App() {
 
     const fetchSession = async () => {
       try {
+        console.log('Starting session fetch');
         setLoading(true);
+        
+        // First try to handle hash parameters if they exist
         await handleHashParams();
-        const { data, error: sessionError } = await supabase.auth.getSession();
         
-        if (sessionError) throw sessionError;
+        // Then check for existing session
+        const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession();
+        console.log('Got session response:', { session: existingSession, error: sessionError });
         
-        if (data && 'session' in data && data.session) {
-          setSession(data.session);
-          if (data.session.user) {
-            await checkAdminStatus(data.session.user);
+        if (sessionError) {
+          console.error('Error fetching session:', sessionError);
+          throw sessionError;
+        }
+        
+        if (existingSession) {
+          console.log('Setting existing session');
+          setSession(existingSession);
+          if (existingSession.user) {
+            console.log('Checking admin status for existing user:', existingSession.user.email);
+            await checkAdminStatus(existingSession.user);
           }
+        } else {
+          console.log('No existing session found');
+          setSession(null);
         }
       } catch (err) {
-        console.error('Error fetching session:', err);
+        console.error('Error in fetchSession:', err);
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
+        console.log('Finishing session fetch');
         setLoading(false);
       }
     };
@@ -91,6 +119,8 @@ function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      console.log('Auth state changed:', _event, newSession?.user?.email);
+      
       if (newSession) {
         setSession(newSession);
         if (newSession.user) {
@@ -111,17 +141,23 @@ function App() {
 
   const checkAdminStatus = async (user: User) => {
     try {
+      console.log('Checking admin status for user:', user.email);
       const { data, error } = await supabase
-        .from('allowed_emails')
+        .from('users')
         .select('is_admin')
-        .eq('email', user.email)
+        .eq('id', user.id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error checking admin status:', error);
+        throw error;
+      }
+
+      console.log('Admin status result:', data);
       setIsAdmin(data?.is_admin || false);
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      setIsAdmin(false);
+    } catch (err) {
+      console.error('Error in checkAdminStatus:', err);
+      setError('Error checking admin status');
     }
   };
 
