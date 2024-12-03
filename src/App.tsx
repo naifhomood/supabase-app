@@ -125,23 +125,28 @@ function App() {
   if (!session) {
     return (
       <div className="auth-container">
-        <Auth 
-          supabaseClient={supabase} 
-          appearance={{ theme: ThemeSupa }}
-          providers={[]}
-          redirectTo="https://naifhomood.github.io/supabase-app"
-          view="magic_link"
-          localization={{
-            variables: {
-              magic_link: {
-                button_label: "إرسال رابط تسجيل الدخول",
-                loading_button_label: "جاري إرسال الرابط...",
-                confirmation_text: "تحقق من بريدك الإلكتروني للحصول على رابط تسجيل الدخول",
-                error_message: "حدث خطأ أثناء إرسال الرابط"
-              } as MagicLinkMessages
-            }
-          }}
-        />
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="p-8 bg-white rounded-lg shadow-md w-96">
+            <Auth
+              supabaseClient={supabase}
+              appearance={{ theme: ThemeSupa }}
+              providers={[]}
+              redirectTo="https://naifhomood.github.io/supabase-app/#"
+              magicLink={true}
+              view="magic_link"
+              localization={{
+                variables: {
+                  magic_link: {
+                    button_label: "إرسل رابط تسجيل الدخول",
+                    loading_button_label: "جاري إرسال الرابط...",
+                    confirmation_text: "تحقق من بريدك الإلكتروني للحصول على رابط تسجيل الدخول",
+                    error_message: "حدث خطأ أثناء إرسال الرابط"
+                  }
+                }
+              }}
+            />
+          </div>
+        </div>
       </div>
     );
   }
