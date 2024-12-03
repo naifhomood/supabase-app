@@ -58,24 +58,25 @@ function App() {
             }
             
             if (newSession) {
-              console.log('New session established');
+              console.log('New session established:', newSession);
               setSession(newSession);
               if (newSession.user) {
-                console.log('Checking admin status for user:', newSession.user.email);
                 await checkAdminStatus(newSession.user);
               } else {
+                console.log('No user in new session');
                 setLoading(false);
               }
-              // Clear the hash from URL
               window.history.replaceState(null, '', window.location.pathname);
             } else {
-              console.error('No session returned after setSession');
+              console.log('No session returned after setSession');
               setLoading(false);
             }
           } else {
+            console.log('No tokens found in hash');
             setLoading(false);
           }
         } else {
+          console.log('No hash parameters found');
           setLoading(false);
         }
       } catch (err) {
@@ -90,10 +91,8 @@ function App() {
         console.log('Starting session fetch');
         setLoading(true);
         
-        // First try to handle hash parameters if they exist
         await handleHashParams();
         
-        // Then check for existing session
         const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession();
         console.log('Got session response:', { session: existingSession, error: sessionError });
         
@@ -104,12 +103,12 @@ function App() {
         }
         
         if (existingSession) {
-          console.log('Setting existing session');
+          console.log('Setting existing session:', existingSession);
           setSession(existingSession);
           if (existingSession.user) {
-            console.log('Checking admin status for existing user:', existingSession.user.email);
             await checkAdminStatus(existingSession.user);
           } else {
+            console.log('No user in existing session');
             setLoading(false);
           }
         } else {
@@ -132,17 +131,19 @@ function App() {
       console.log('Auth state changed:', _event, newSession?.user?.email);
       
       if (newSession) {
+        console.log('Setting new session from auth change');
         setSession(newSession);
         if (newSession.user) {
           await checkAdminStatus(newSession.user);
         } else {
+          console.log('No user in new session from auth change');
           setLoading(false);
         }
-        // Clear the hash from URL if it exists
         if (window.location.hash) {
           window.history.replaceState(null, '', window.location.pathname);
         }
       } else {
+        console.log('No session in auth change');
         setSession(null);
         setIsAdmin(false);
         setLoading(false);
@@ -154,54 +155,52 @@ function App() {
 
   const checkAdminStatus = async (user: User) => {
     try {
-      console.log('Checking admin status for user:', user.email);
+      console.log('Starting checkAdminStatus for user:', user.email);
       
-      // Try to insert the user if they don't exist
-      const { error: upsertError } = await supabase
-        .from('users')
-        .upsert({ 
-          id: user.id,
-          email: user.email,
-          is_admin: false,
-          updated_at: new Date().toISOString()
-        });
-      
-      if (upsertError) {
-        console.error('Error upserting user:', upsertError);
-      }
-
-      // Now try to get the user's admin status
+      // First, try to get the user's admin status
       const { data, error } = await supabase
         .from('users')
         .select('is_admin')
         .eq('id', user.id)
         .single();
 
+      console.log('User query result:', { data, error });
+
       if (error) {
-        console.error('Error checking admin status:', error);
-        setIsAdmin(false);
+        // If error is 'not found', try to create the user
+        if (error.code === 'PGRST116') {
+          console.log('User not found, creating new user');
+          const { error: insertError } = await supabase
+            .from('users')
+            .insert([
+              {
+                id: user.id,
+                email: user.email,
+                is_admin: user.email === 'naifhomood@gmail.com'
+              }
+            ]);
+
+          if (insertError) {
+            console.error('Error creating user:', insertError);
+            setIsAdmin(false);
+          } else {
+            console.log('User created successfully');
+            setIsAdmin(user.email === 'naifhomood@gmail.com');
+          }
+        } else {
+          console.error('Error checking admin status:', error);
+          setIsAdmin(false);
+        }
       } else {
-        console.log('Admin status result:', data);
+        console.log('Setting admin status:', data?.is_admin);
         setIsAdmin(data?.is_admin || false);
       }
-      
-      // Finally, set loading to false
-      setLoading(false);
     } catch (err) {
       console.error('Error in checkAdminStatus:', err);
       setIsAdmin(false);
+    } finally {
+      console.log('Finishing checkAdminStatus');
       setLoading(false);
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      window.location.href = 'https://naifhomood.github.io/supabase-app/';
-    } catch (err) {
-      console.error('Error signing out:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred while signing out');
     }
   };
 
@@ -319,7 +318,7 @@ function App() {
             )}
             <button 
               className="logout-button"
-              onClick={handleSignOut}
+              onClick={() => handleSignOut()}
             >
               تسجيل الخروج
             </button>
@@ -374,5 +373,16 @@ function App() {
     </div>
   );
 }
+
+const handleSignOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    window.location.href = 'https://naifhomood.github.io/supabase-app/';
+  } catch (err) {
+    console.error('Error signing out:', err);
+    setError(err instanceof Error ? err.message : 'An error occurred while signing out');
+  }
+};
 
 export default App;
