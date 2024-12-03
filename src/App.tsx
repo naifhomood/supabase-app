@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 import { supabase } from './supabaseClient';
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
@@ -33,10 +33,10 @@ function App() {
   useEffect(() => {
     const fetchSession = async () => {
       const { data } = await supabase.auth.getSession();
-      if (data && data.session) {
+      if (data && 'session' in data && data.session) {
         setSession(data.session);
         if (data.session.user) {
-          checkAdminStatus(data.session.user);
+          await checkAdminStatus(data.session.user);
         }
       }
     };
@@ -45,11 +45,11 @@ function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      if (currentSession) {
-        setSession(currentSession);
-        if (currentSession.user) {
-          checkAdminStatus(currentSession.user);
+    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      if (newSession) {
+        setSession(newSession);
+        if (newSession.user) {
+          await checkAdminStatus(newSession.user);
         }
       } else {
         setSession(null);

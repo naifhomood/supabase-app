@@ -251,58 +251,63 @@ const KanbanBoard: React.FC<Props> = ({ themeSettings }) => {
       
       if (!sourceColumn || !destColumn) return;
 
-      let tasksToUpdate: TaskUpdate[] = [];
+      const tasksToUpdate: TaskUpdate[] = [];
       
       if (source.droppableId === destination.droppableId) {
         const newTasks = Array.from(sourceColumn.tasks);
         const [removed] = newTasks.splice(source.index, 1);
         newTasks.splice(destination.index, 0, removed);
         
-        setColumns(columns.map(col => 
+        setColumns(prevColumns => prevColumns.map(col => 
           col.id === sourceColumn.id ? { ...col, tasks: newTasks } : col
         ));
         
-        tasksToUpdate = newTasks.map((task, index) => ({
-          id: task.id,
-          position: index,
-          column_id: sourceColumn.id
-        }));
+        newTasks.forEach((task, index) => {
+          tasksToUpdate.push({
+            id: task.id,
+            position: index,
+            column_id: sourceColumn.id
+          });
+        });
       } else {
         const sourceTasks = Array.from(sourceColumn.tasks);
         const destTasks = Array.from(destColumn.tasks);
         const [removed] = sourceTasks.splice(source.index, 1);
         destTasks.splice(destination.index, 0, removed);
         
-        setColumns(columns.map(col => {
+        setColumns(prevColumns => prevColumns.map(col => {
           if (col.id === sourceColumn.id) return { ...col, tasks: sourceTasks };
           if (col.id === destColumn.id) return { ...col, tasks: destTasks };
           return col;
         }));
         
-        tasksToUpdate = [
-          ...sourceTasks.map((task, index) => ({
+        sourceTasks.forEach((task, index) => {
+          tasksToUpdate.push({
             id: task.id,
             position: index,
             column_id: sourceColumn.id
-          })),
-          ...destTasks.map((task, index) => ({
+          });
+        });
+        
+        destTasks.forEach((task, index) => {
+          tasksToUpdate.push({
             id: task.id,
             position: index,
             column_id: destColumn.id
-          }))
-        ];
+          });
+        });
       }
       
       try {
-        for (const task of tasksToUpdate) {
-          await supabase
+        await Promise.all(tasksToUpdate.map(task => 
+          supabase
             .from('tasks')
             .update({
               position: task.position,
               column_id: task.column_id
             })
-            .eq('id', task.id);
-        }
+            .eq('id', task.id)
+        ));
       } catch (error) {
         console.error('Error updating task positions:', error);
       }
