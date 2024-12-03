@@ -31,27 +31,29 @@ function App() {
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      checkAdminStatus(session?.user);
-    });
+    const fetchSession = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      setSession(currentSession);
+      if (currentSession?.user) {
+        checkAdminStatus(currentSession.user);
+      }
+    };
+
+    fetchSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      checkAdminStatus(session?.user);
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
+      if (currentSession?.user) {
+        checkAdminStatus(currentSession.user);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkAdminStatus = async (user: User | null) => {
-    if (!user) {
-      setIsAdmin(false);
-      return;
-    }
-
+  const checkAdminStatus = async (user: User) => {
     try {
       const { data, error } = await supabase
         .from('allowed_emails')

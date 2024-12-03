@@ -16,11 +16,20 @@ interface Column {
   tasks: Task[];
 }
 
-interface Props {
-  defaultColumnColor: string;
+interface TaskUpdate {
+  id: number;
+  position: number;
+  column_id: string;
 }
 
-const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
+interface Props {
+  themeSettings: {
+    board_bg: string;
+    default_column_bg: string;
+  };
+}
+
+const KanbanBoard: React.FC<Props> = ({ themeSettings }) => {
   const [columns, setColumns] = useState<Column[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newColumnTitle, setNewColumnTitle] = useState('');
@@ -90,7 +99,7 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
         .insert([
           {
             title: newColumnTitle.trim(),
-            color: newColumnColor || defaultColumnColor,
+            color: newColumnColor || themeSettings.default_column_bg,
             position: newPosition,
             user_id: (await supabase.auth.getUser()).data.user?.id
           }
@@ -226,7 +235,6 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
       
       setColumns(newColumnOrder);
       
-      // Update column positions in database
       try {
         for (let i = 0; i < newColumnOrder.length; i++) {
           await supabase
@@ -243,10 +251,9 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
       
       if (!sourceColumn || !destColumn) return;
 
-      const tasksToUpdate: { id: number; position: number; column_id: string }[] = [];
+      const tasksToUpdate: TaskUpdate[] = [];
       
       if (source.droppableId === destination.droppableId) {
-        // Moving within the same column
         const newTasks = Array.from(sourceColumn.tasks);
         const [removed] = newTasks.splice(source.index, 1);
         newTasks.splice(destination.index, 0, removed);
@@ -255,7 +262,6 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
           col.id === sourceColumn.id ? { ...col, tasks: newTasks } : col
         ));
         
-        // Update positions
         newTasks.forEach((task, index) => {
           tasksToUpdate.push({
             id: task.id,
@@ -264,7 +270,6 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
           });
         });
       } else {
-        // Moving to different column
         const sourceTasks = Array.from(sourceColumn.tasks);
         const destTasks = Array.from(destColumn.tasks);
         const [removed] = sourceTasks.splice(source.index, 1);
@@ -276,7 +281,6 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
           return col;
         }));
         
-        // Update positions for both columns
         sourceTasks.forEach((task, index) => {
           tasksToUpdate.push({
             id: task.id,
@@ -294,7 +298,6 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
         });
       }
       
-      // Update database
       try {
         for (const task of tasksToUpdate) {
           await supabase
@@ -316,7 +319,7 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
   }
 
   return (
-    <div className="kanban-board">
+    <div className="kanban-board" style={{ backgroundColor: themeSettings.board_bg }}>
       {error && (
         <div className="error-message" style={{
           backgroundColor: '#ffe6e6',
