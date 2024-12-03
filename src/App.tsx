@@ -1,4 +1,4 @@
-import { useState, useEffect, Dispatch, SetStateAction } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
@@ -14,6 +14,13 @@ interface ThemeSettings {
   footer_text: string;
   board_bg: string;
   default_column_bg: string;
+}
+
+interface MagicLinkMessages {
+  button_label: string;
+  loading_button_label: string;
+  confirmation_text: string;
+  error_message: string;
 }
 
 function App() {
@@ -130,7 +137,7 @@ function App() {
                 loading_button_label: "جاري إرسال الرابط...",
                 confirmation_text: "تحقق من بريدك الإلكتروني للحصول على رابط تسجيل الدخول",
                 error_message: "حدث خطأ أثناء إرسال الرابط"
-              }
+              } as MagicLinkMessages
             }
           }}
         />

@@ -236,12 +236,12 @@ const KanbanBoard: React.FC<Props> = ({ themeSettings }) => {
       setColumns(newColumnOrder);
       
       try {
-        for (let i = 0; i < newColumnOrder.length; i++) {
-          await supabase
+        await Promise.all(newColumnOrder.map((column, index) => 
+          supabase
             .from('kanban_columns')
-            .update({ position: i })
-            .eq('id', newColumnOrder[i].id);
-        }
+            .update({ position: index })
+            .eq('id', column.id)
+        ));
       } catch (error) {
         console.error('Error updating column positions:', error);
       }
