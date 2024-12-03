@@ -129,6 +129,7 @@ function App() {
           supabaseClient={supabase} 
           appearance={{ theme: ThemeSupa }}
           providers={[]}
+          redirectTo="https://naifhomood.github.io/supabase-app"
           view="magic_link"
           localization={{
             variables: {
