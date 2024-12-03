@@ -8,6 +8,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    sourcemap: true,
     rollupOptions: {
       output: {
         manualChunks: undefined
@@ -17,6 +18,6 @@ export default defineConfig({
   server: {
     port: 9000,
     host: '0.0.0.0',
-    open: true // سيفتح المتصفح تلقائياً
+    open: true
   }
 })
