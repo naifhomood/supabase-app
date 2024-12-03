@@ -18,18 +18,66 @@ CREATE TABLE public.users (
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 -- Create policies
+DROP POLICY IF EXISTS "Users can view their own data" ON public.users;
+DROP POLICY IF EXISTS "Users can update their own data" ON public.users;
+DROP POLICY IF EXISTS "Admins can view all data" ON public.users;
+
 CREATE POLICY "Users can view their own data"
     ON public.users
     FOR SELECT
     TO authenticated
-    USING (auth.uid() = id);
+    USING (
+        auth.uid() = id 
+        OR 
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE id = auth.uid() 
+            AND is_admin = true
+        )
+    );
+
+CREATE POLICY "Users can update their own data"
+    ON public.users
+    FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = id)
+    WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Users can insert their own data"
+    ON public.users
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Admins can view all data"
+    ON public.users
+    FOR SELECT
+    TO authenticated
+    USING (EXISTS (
+        SELECT 1 FROM public.users 
+        WHERE id = auth.uid() 
+        AND is_admin = true
+    ));
 
 -- Function to automatically create user record
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-    INSERT INTO public.users (id, email)
-    VALUES (new.id::uuid, new.email);
+    INSERT INTO public.users (id, email, is_admin)
+    VALUES (
+        new.id::uuid,
+        new.email,
+        CASE 
+            WHEN new.email = 'naifhomood@gmail.com' THEN true
+            ELSE false
+        END
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email,
+        is_admin = CASE 
+            WHEN new.email = 'naifhomood@gmail.com' THEN true
+            ELSE users.is_admin
+        END;
     RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
