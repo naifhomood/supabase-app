@@ -14,6 +14,7 @@ interface Column {
   title: string;
   position: number;
   tasks: Task[];
+  color?: string;
 }
 
 interface TaskUpdate {

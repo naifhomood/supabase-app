@@ -206,7 +206,7 @@ function App() {
             onClose={() => setShowEmailManagement(false)}
           />
         ) : (
-          <KanbanBoard defaultColumnColor={themeSettings.default_column_bg} />
+          <KanbanBoard themeSettings={themeSettings} />
         )}
       </main>
 
