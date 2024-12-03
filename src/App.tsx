@@ -53,7 +53,8 @@ function App() {
             
             if (sessionError) {
               console.error('Error setting session:', sessionError);
-              throw sessionError;
+              setLoading(false);
+              return;
             }
             
             if (newSession) {
@@ -62,18 +63,25 @@ function App() {
               if (newSession.user) {
                 console.log('Checking admin status for user:', newSession.user.email);
                 await checkAdminStatus(newSession.user);
+              } else {
+                setLoading(false);
               }
               // Clear the hash from URL
               window.history.replaceState(null, '', window.location.pathname);
             } else {
               console.error('No session returned after setSession');
-              throw new Error('Failed to establish session');
+              setLoading(false);
             }
+          } else {
+            setLoading(false);
           }
+        } else {
+          setLoading(false);
         }
       } catch (err) {
         console.error('Error handling hash params:', err);
         setError(err instanceof Error ? err.message : 'An error occurred');
+        setLoading(false);
       }
     };
 
@@ -91,7 +99,8 @@ function App() {
         
         if (sessionError) {
           console.error('Error fetching session:', sessionError);
-          throw sessionError;
+          setLoading(false);
+          return;
         }
         
         if (existingSession) {
@@ -100,16 +109,17 @@ function App() {
           if (existingSession.user) {
             console.log('Checking admin status for existing user:', existingSession.user.email);
             await checkAdminStatus(existingSession.user);
+          } else {
+            setLoading(false);
           }
         } else {
           console.log('No existing session found');
           setSession(null);
+          setLoading(false);
         }
       } catch (err) {
         console.error('Error in fetchSession:', err);
         setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        console.log('Finishing session fetch');
         setLoading(false);
       }
     };
@@ -125,6 +135,8 @@ function App() {
         setSession(newSession);
         if (newSession.user) {
           await checkAdminStatus(newSession.user);
+        } else {
+          setLoading(false);
         }
         // Clear the hash from URL if it exists
         if (window.location.hash) {
@@ -133,6 +145,7 @@ function App() {
       } else {
         setSession(null);
         setIsAdmin(false);
+        setLoading(false);
       }
     });
 
@@ -142,6 +155,19 @@ function App() {
   const checkAdminStatus = async (user: User) => {
     try {
       console.log('Checking admin status for user:', user.email);
+      
+      // First, try to get all users to debug
+      const { data: allUsers, error: usersError } = await supabase
+        .from('users')
+        .select('*');
+      
+      console.log('All users:', allUsers);
+      
+      if (usersError) {
+        console.error('Error fetching all users:', usersError);
+      }
+
+      // Now try to get the specific user
       const { data, error } = await supabase
         .from('users')
         .select('is_admin')
@@ -150,14 +176,21 @@ function App() {
 
       if (error) {
         console.error('Error checking admin status:', error);
-        throw error;
+        // Don't throw the error, just log it and continue
+        setIsAdmin(false);
+        return;
       }
 
       console.log('Admin status result:', data);
       setIsAdmin(data?.is_admin || false);
+      
+      // Finally, set loading to false
+      setLoading(false);
     } catch (err) {
       console.error('Error in checkAdminStatus:', err);
-      setError('Error checking admin status');
+      // Don't set error, just log it and continue
+      setIsAdmin(false);
+      setLoading(false);
     }
   };
 
