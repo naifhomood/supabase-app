@@ -40,9 +40,41 @@ function App() {
   });
 
   useEffect(() => {
+    const handleHashParams = async () => {
+      try {
+        const hash = window.location.hash;
+        if (hash && hash.includes('access_token')) {
+          const params = new URLSearchParams(hash.substring(1));
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+          
+          if (accessToken && refreshToken) {
+            const { data: { session: newSession }, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken
+            });
+            
+            if (sessionError) throw sessionError;
+            if (newSession) {
+              setSession(newSession);
+              if (newSession.user) {
+                await checkAdminStatus(newSession.user);
+              }
+              // Clear the hash from URL
+              window.history.replaceState(null, '', window.location.pathname);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error handling hash params:', err);
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      }
+    };
+
     const fetchSession = async () => {
       try {
         setLoading(true);
+        await handleHashParams();
         const { data, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) throw sessionError;
@@ -70,6 +102,10 @@ function App() {
         setSession(newSession);
         if (newSession.user) {
           await checkAdminStatus(newSession.user);
+        }
+        // Clear the hash from URL if it exists
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname);
         }
       } else {
         setSession(null);
