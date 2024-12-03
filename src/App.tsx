@@ -16,13 +16,6 @@ interface ThemeSettings {
   default_column_bg: string;
 }
 
-interface MagicLinkMessages {
-  button_label: string;
-  loading_button_label: string;
-  confirmation_text: string;
-  error_message: string;
-}
-
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -228,10 +221,9 @@ function App() {
               localization={{
                 variables: {
                   magic_link: {
-                    button_label: "إرسل رابط تسجيل الدخول",
+                    button_label: "أرسل رابط تسجيل الدخول",
                     loading_button_label: "جاري إرسال الرابط...",
                     confirmation_text: "تحقق من بريدك الإلكتروني للحصول على رابط تسجيل الدخول",
-                    error_message: "حدث خطأ أثناء إرسال الرابط"
                   }
                 }
               }}
