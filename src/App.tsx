@@ -28,6 +28,8 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showThemeSettings, setShowThemeSettings] = useState(false);
   const [showEmailManagement, setShowEmailManagement] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [themeSettings, setThemeSettings] = useState<ThemeSettings>({
     header_bg: '#ffffff',
     header_text: '#000000',
@@ -39,12 +41,23 @@ function App() {
 
   useEffect(() => {
     const fetchSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data && 'session' in data && data.session) {
-        setSession(data.session);
-        if (data.session.user) {
-          await checkAdminStatus(data.session.user);
+      try {
+        setLoading(true);
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) throw sessionError;
+        
+        if (data && 'session' in data && data.session) {
+          setSession(data.session);
+          if (data.session.user) {
+            await checkAdminStatus(data.session.user);
+          }
         }
+      } catch (err) {
+        console.error('Error fetching session:', err);
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -80,6 +93,17 @@ function App() {
     } catch (error) {
       console.error('Error checking admin status:', error);
       setIsAdmin(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      window.location.href = 'https://naifhomood.github.io/supabase-app/';
+    } catch (err) {
+      console.error('Error signing out:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred while signing out');
     }
   };
 
@@ -121,6 +145,37 @@ function App() {
       themeSubscription.unsubscribe();
     };
   }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="p-8 bg-white rounded-lg shadow-md">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            <p className="mt-2 text-gray-600">جاري التحميل...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="p-8 bg-white rounded-lg shadow-md">
+          <div className="text-center">
+            <p className="text-red-600">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              إعادة المحاولة
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return (
@@ -170,7 +225,7 @@ function App() {
             )}
             <button 
               className="logout-button"
-              onClick={() => supabase.auth.signOut()}
+              onClick={handleSignOut}
             >
               تسجيل الخروج
             </button>
