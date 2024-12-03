@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
+import { Session } from '@supabase/supabase-js';
 import KanbanBoard from './components/KanbanBoard';
 import AdminThemeSettings from './components/AdminThemeSettings';
 import EmailManagement from './components/EmailManagement';
@@ -16,7 +17,7 @@ interface ThemeSettings {
 }
 
 function App() {
-  const [session, setSession] = useState(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showThemeSettings, setShowThemeSettings] = useState(false);
   const [showEmailManagement, setShowEmailManagement] = useState(false);
@@ -116,9 +117,8 @@ function App() {
               magic_link: {
                 button_label: "إرسال رابط تسجيل الدخول",
                 loading_button_label: "جاري إرسال الرابط...",
-                success_message: "تم إرسال رابط تسجيل الدخول إلى بريدك الإلكتروني",
-                error_message: "حدث خطأ أثناء إرسال الرابط",
-                confirmation_text: "تحقق من بريدك الإلكتروني للحصول على رابط تسجيل الدخول"
+                confirmation_text: "تحقق من بريدك الإلكتروني للحصول على رابط تسجيل الدخول",
+                error_message: "حدث خطأ أثناء إرسال الرابط"
               }
             }
           }}

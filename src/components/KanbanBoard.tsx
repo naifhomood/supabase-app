@@ -212,98 +212,100 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
     }
   };
 
-  const onDragEnd = async (result: DropResult) => {
-    console.log('Drag end result:', result);
-    const { source, destination, draggableId } = result;
+  const handleDragEnd = async (result: DropResult) => {
+    if (!result.destination) return;
+
+    const { source, destination } = result;
     
-    if (!destination) return;
-
-    try {
-      const task = tasks.find(t => t.id === draggableId);
-      if (!task) {
-        console.error('Task not found:', draggableId);
-        return;
-      }
-
-      // Get tasks in source and destination columns
-      const sourceColumnTasks = tasks
-        .filter(t => t.column_id === source.droppableId)
-        .sort((a, b) => a.position - b.position);
-
-      const destinationColumnTasks = source.droppableId === destination.droppableId
-        ? sourceColumnTasks
-        : tasks
-            .filter(t => t.column_id === destination.droppableId)
-            .sort((a, b) => a.position - b.position);
-
-      // Remove task from source column
-      const newSourceTasks = [...sourceColumnTasks];
-      newSourceTasks.splice(source.index, 1);
-
-      // Add task to destination column
-      const newDestTasks = source.droppableId === destination.droppableId
-        ? newSourceTasks
-        : [...destinationColumnTasks];
+    if (result.type === 'column') {
+      const newColumnOrder = Array.from(columns);
+      const [removed] = newColumnOrder.splice(source.index, 1);
+      newColumnOrder.splice(destination.index, 0, removed);
       
-      const updatedTask = {
-        ...task,
-        column_id: destination.droppableId,
-        position: destination.index
-      };
-
-      newDestTasks.splice(destination.index, 0, updatedTask);
-
-      // Update positions for all affected tasks
-      const tasksToUpdate = [];
-
-      // Update source column positions
-      if (source.droppableId === destination.droppableId) {
-        // Same column - just update positions in this column
-        tasksToUpdate.push(
-          ...newDestTasks.map((t, index) => ({
-            ...t,
-            position: index
-          }))
-        );
-      } else {
-        // Different columns - update positions in both columns
-        tasksToUpdate.push(
-          ...newSourceTasks.map((t, index) => ({
-            ...t,
-            position: index
-          })),
-          ...newDestTasks.map((t, index) => ({
-            ...t,
-            position: index
-          }))
-        );
+      setColumns(newColumnOrder);
+      
+      // Update column positions in database
+      try {
+        for (let i = 0; i < newColumnOrder.length; i++) {
+          await supabase
+            .from('kanban_columns')
+            .update({ position: i })
+            .eq('id', newColumnOrder[i].id);
+        }
+      } catch (error) {
+        console.error('Error updating column positions:', error);
       }
+    } else {
+      const sourceColumn = columns.find(col => col.id === source.droppableId);
+      const destColumn = columns.find(col => col.id === destination.droppableId);
+      
+      if (!sourceColumn || !destColumn) return;
 
-      console.log('Updating tasks:', tasksToUpdate);
-
-      // Update state optimistically
-      const newTasks = tasks.map(t => {
-        const updatedTaskData = tasksToUpdate.find(ut => ut.id === t.id);
-        return updatedTaskData || t;
-      });
-      setTasks(newTasks);
-
+      const tasksToUpdate: { id: number; position: number; column_id: string }[] = [];
+      
+      if (source.droppableId === destination.droppableId) {
+        // Moving within the same column
+        const newTasks = Array.from(tasks.filter(task => task.column_id === sourceColumn.id));
+        const [removed] = newTasks.splice(source.index, 1);
+        newTasks.splice(destination.index, 0, removed);
+        
+        setTasks(tasks.map(task => 
+          task.column_id === sourceColumn.id ? { ...task, position: newTasks.indexOf(task) } : task
+        ));
+        
+        // Update positions
+        newTasks.forEach((task, index) => {
+          tasksToUpdate.push({
+            id: task.id,
+            position: index,
+            column_id: sourceColumn.id
+          });
+        });
+      } else {
+        // Moving to different column
+        const sourceTasks = Array.from(tasks.filter(task => task.column_id === sourceColumn.id));
+        const destTasks = Array.from(tasks.filter(task => task.column_id === destColumn.id));
+        const [removed] = sourceTasks.splice(source.index, 1);
+        destTasks.splice(destination.index, 0, removed);
+        
+        setTasks(tasks.map(task => {
+          if (task.column_id === sourceColumn.id) return { ...task, position: sourceTasks.indexOf(task) };
+          if (task.column_id === destColumn.id) return { ...task, position: destTasks.indexOf(task), column_id: destColumn.id };
+          return task;
+        }));
+        
+        // Update positions for both columns
+        sourceTasks.forEach((task, index) => {
+          tasksToUpdate.push({
+            id: task.id,
+            position: index,
+            column_id: sourceColumn.id
+          });
+        });
+        
+        destTasks.forEach((task, index) => {
+          tasksToUpdate.push({
+            id: task.id,
+            position: index,
+            column_id: destColumn.id
+          });
+        });
+      }
+      
       // Update database
-      const { error } = await supabase
-        .from('tasks')
-        .upsert(tasksToUpdate, { onConflict: 'id' });
-
-      if (error) throw error;
-
-      // Fetch fresh data to ensure consistency
-      fetchTasks();
-
-      setError(null);
-    } catch (err) {
-      console.error('Error during drag and drop:', err);
-      setError('حدث خطأ أثناء تحريك العنصر');
-      // Refresh the board to ensure consistent state
-      fetchTasks();
+      try {
+        for (const task of tasksToUpdate) {
+          await supabase
+            .from('tasks')
+            .update({
+              position: task.position,
+              column_id: task.column_id
+            })
+            .eq('id', task.id);
+        }
+      } catch (error) {
+        console.error('Error updating task positions:', error);
+      }
     }
   };
 
@@ -343,7 +345,7 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
         <button type="submit">إضافة عمود</button>
       </form>
 
-      <DragDropContext onDragEnd={onDragEnd}>
+      <DragDropContext onDragEnd={handleDragEnd}>
         <div className="columns-container">
           {columns.map((column) => (
             <div
