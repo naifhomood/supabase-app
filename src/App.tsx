@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
-import { Session } from '@supabase/supabase-js';
+import { Session, User } from '@supabase/supabase-js';
 import KanbanBoard from './components/KanbanBoard';
 import AdminThemeSettings from './components/AdminThemeSettings';
 import EmailManagement from './components/EmailManagement';
@@ -33,37 +33,39 @@ function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      checkAdminStatus(session?.user);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      checkAdminStatus(session?.user);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      if (!session?.user?.email) return;
-      
+  const checkAdminStatus = async (user: User | null) => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    try {
       const { data, error } = await supabase
         .from('allowed_emails')
         .select('is_admin')
-        .eq('email', session.user.email)
+        .eq('email', user.email)
         .single();
-      
-      if (error) {
-        console.error('Error checking admin status:', error);
-        return;
-      }
-      
-      setIsAdmin(data?.is_admin || false);
-    };
 
-    checkAdminStatus();
-  }, [session]);
+      if (error) throw error;
+      setIsAdmin(data?.is_admin || false);
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+    }
+  };
 
   useEffect(() => {
     const fetchThemeSettings = async () => {

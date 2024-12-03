@@ -2,18 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { supabase } from '../supabaseClient';
 
+interface Task {
+  id: number;
+  title: string;
+  position: number;
+  column_id: string;
+}
+
 interface Column {
   id: string;
   title: string;
-  color: string;
   position: number;
-}
-
-interface Task {
-  id: string;
-  title: string;
-  column_id: string;
-  position: number;
+  tasks: Task[];
 }
 
 interface Props {
@@ -105,7 +105,7 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
       }
 
       console.log('Added new column:', newColumn);
-      setColumns([...columns, newColumn]);
+      setColumns([...columns, { ...newColumn, tasks: [] }]);
       setNewColumnTitle('');
       setNewColumnColor('#e2e8f0');
       setError(null);
@@ -145,6 +145,7 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
 
       console.log('Added new task:', newTask);
       setTasks([...tasks, newTask]);
+      setColumns(columns.map(col => col.id === columnId ? { ...col, tasks: [...col.tasks, newTask] } : col));
       setError(null);
     } catch (err) {
       console.error('Error:', err);
@@ -167,7 +168,8 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
         return;
       }
 
-      setTasks(tasks.filter(t => t.id !== taskId));
+      setTasks(tasks.filter(t => t.id !== parseInt(taskId)));
+      setColumns(columns.map(col => ({ ...col, tasks: col.tasks.filter(t => t.id !== parseInt(taskId)) })));
       setError(null);
     } catch (err) {
       console.error('Error:', err);
@@ -245,12 +247,12 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
       
       if (source.droppableId === destination.droppableId) {
         // Moving within the same column
-        const newTasks = Array.from(tasks.filter(task => task.column_id === sourceColumn.id));
+        const newTasks = Array.from(sourceColumn.tasks);
         const [removed] = newTasks.splice(source.index, 1);
         newTasks.splice(destination.index, 0, removed);
         
-        setTasks(tasks.map(task => 
-          task.column_id === sourceColumn.id ? { ...task, position: newTasks.indexOf(task) } : task
+        setColumns(columns.map(col => 
+          col.id === sourceColumn.id ? { ...col, tasks: newTasks } : col
         ));
         
         // Update positions
@@ -263,15 +265,15 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
         });
       } else {
         // Moving to different column
-        const sourceTasks = Array.from(tasks.filter(task => task.column_id === sourceColumn.id));
-        const destTasks = Array.from(tasks.filter(task => task.column_id === destColumn.id));
+        const sourceTasks = Array.from(sourceColumn.tasks);
+        const destTasks = Array.from(destColumn.tasks);
         const [removed] = sourceTasks.splice(source.index, 1);
         destTasks.splice(destination.index, 0, removed);
         
-        setTasks(tasks.map(task => {
-          if (task.column_id === sourceColumn.id) return { ...task, position: sourceTasks.indexOf(task) };
-          if (task.column_id === destColumn.id) return { ...task, position: destTasks.indexOf(task), column_id: destColumn.id };
-          return task;
+        setColumns(columns.map(col => {
+          if (col.id === sourceColumn.id) return { ...col, tasks: sourceTasks };
+          if (col.id === destColumn.id) return { ...col, tasks: destTasks };
+          return col;
         }));
         
         // Update positions for both columns
@@ -370,13 +372,12 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
                     {...provided.droppableProps}
                     className="task-list"
                   >
-                    {tasks
-                      .filter(task => task.column_id === column.id)
+                    {column.tasks
                       .sort((a, b) => a.position - b.position)
                       .map((task, taskIndex) => (
                         <Draggable
                           key={task.id}
-                          draggableId={task.id}
+                          draggableId={task.id.toString()}
                           index={taskIndex}
                         >
                           {(provided, snapshot) => (
@@ -389,7 +390,7 @@ const KanbanBoard: React.FC<Props> = ({ defaultColumnColor }) => {
                               <div className="task-content">
                                 {task.title}
                                 <button
-                                  onClick={() => deleteTask(task.id)}
+                                  onClick={() => deleteTask(task.id.toString())}
                                   className="delete-task-button"
                                   title="حذف المهمة"
                                 >
