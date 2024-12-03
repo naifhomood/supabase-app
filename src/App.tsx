@@ -156,18 +156,21 @@ function App() {
     try {
       console.log('Checking admin status for user:', user.email);
       
-      // First, try to get all users to debug
-      const { data: allUsers, error: usersError } = await supabase
+      // Try to insert the user if they don't exist
+      const { error: upsertError } = await supabase
         .from('users')
-        .select('*');
+        .upsert({ 
+          id: user.id,
+          email: user.email,
+          is_admin: false,
+          updated_at: new Date().toISOString()
+        });
       
-      console.log('All users:', allUsers);
-      
-      if (usersError) {
-        console.error('Error fetching all users:', usersError);
+      if (upsertError) {
+        console.error('Error upserting user:', upsertError);
       }
 
-      // Now try to get the specific user
+      // Now try to get the user's admin status
       const { data, error } = await supabase
         .from('users')
         .select('is_admin')
@@ -176,19 +179,16 @@ function App() {
 
       if (error) {
         console.error('Error checking admin status:', error);
-        // Don't throw the error, just log it and continue
         setIsAdmin(false);
-        return;
+      } else {
+        console.log('Admin status result:', data);
+        setIsAdmin(data?.is_admin || false);
       }
-
-      console.log('Admin status result:', data);
-      setIsAdmin(data?.is_admin || false);
       
       // Finally, set loading to false
       setLoading(false);
     } catch (err) {
       console.error('Error in checkAdminStatus:', err);
-      // Don't set error, just log it and continue
       setIsAdmin(false);
       setLoading(false);
     }
