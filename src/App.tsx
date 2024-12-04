@@ -16,13 +16,18 @@ interface ThemeSettings {
   default_column_bg: string;
 }
 
+interface MagicLinkMessages {
+  button_label: string;
+  loading_button_label: string;
+  confirmation_text: string;
+  error_message: string;
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showThemeSettings, setShowThemeSettings] = useState(false);
   const [showEmailManagement, setShowEmailManagement] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [themeSettings, setThemeSettings] = useState<ThemeSettings>({
     header_bg: '#ffffff',
     header_text: '#000000',
@@ -33,93 +38,13 @@ function App() {
   });
 
   useEffect(() => {
-    const handleHashParams = async () => {
-      try {
-        const hash = window.location.hash;
-        console.log('Current hash:', hash);
-        
-        if (hash && hash.includes('access_token')) {
-          console.log('Found access_token in hash');
-          const params = new URLSearchParams(hash.substring(1));
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-          
-          if (accessToken && refreshToken) {
-            console.log('Setting session with tokens');
-            const { data: { session: newSession }, error: sessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken
-            });
-            
-            if (sessionError) {
-              console.error('Error setting session:', sessionError);
-              setLoading(false);
-              return;
-            }
-            
-            if (newSession) {
-              console.log('New session established:', newSession);
-              setSession(newSession);
-              if (newSession.user) {
-                await checkAdminStatus(newSession.user);
-              } else {
-                console.log('No user in new session');
-                setLoading(false);
-              }
-              window.history.replaceState(null, '', window.location.pathname);
-            } else {
-              console.log('No session returned after setSession');
-              setLoading(false);
-            }
-          } else {
-            console.log('No tokens found in hash');
-            setLoading(false);
-          }
-        } else {
-          console.log('No hash parameters found');
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error('Error handling hash params:', err);
-        setError(err instanceof Error ? err.message : 'An error occurred');
-        setLoading(false);
-      }
-    };
-
     const fetchSession = async () => {
-      try {
-        console.log('Starting session fetch');
-        setLoading(true);
-        
-        await handleHashParams();
-        
-        const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession();
-        console.log('Got session response:', { session: existingSession, error: sessionError });
-        
-        if (sessionError) {
-          console.error('Error fetching session:', sessionError);
-          setLoading(false);
-          return;
+      const { data } = await supabase.auth.getSession();
+      if (data && 'session' in data && data.session) {
+        setSession(data.session);
+        if (data.session.user) {
+          await checkAdminStatus(data.session.user);
         }
-        
-        if (existingSession) {
-          console.log('Setting existing session:', existingSession);
-          setSession(existingSession);
-          if (existingSession.user) {
-            await checkAdminStatus(existingSession.user);
-          } else {
-            console.log('No user in existing session');
-            setLoading(false);
-          }
-        } else {
-          console.log('No existing session found');
-          setSession(null);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error('Error in fetchSession:', err);
-        setError(err instanceof Error ? err.message : 'An error occurred');
-        setLoading(false);
       }
     };
 
@@ -128,25 +53,14 @@ function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      console.log('Auth state changed:', _event, newSession?.user?.email);
-      
       if (newSession) {
-        console.log('Setting new session from auth change');
         setSession(newSession);
         if (newSession.user) {
           await checkAdminStatus(newSession.user);
-        } else {
-          console.log('No user in new session from auth change');
-          setLoading(false);
-        }
-        if (window.location.hash) {
-          window.history.replaceState(null, '', window.location.pathname);
         }
       } else {
-        console.log('No session in auth change');
         setSession(null);
         setIsAdmin(false);
-        setLoading(false);
       }
     });
 
@@ -155,59 +69,17 @@ function App() {
 
   const checkAdminStatus = async (user: User) => {
     try {
-      console.log('Starting checkAdminStatus for user:', user.email);
-      console.log('User ID:', user.id);
-      
-      // First, try to get the user's admin status
       const { data, error } = await supabase
-        .from('users')
-        .select('*')  // Select all columns for debugging
-        .eq('id', user.id)
+        .from('allowed_emails')
+        .select('is_admin')
+        .eq('email', user.email)
         .single();
 
-      console.log('User query result:', { data, error });
-
-      if (error) {
-        // If error is 'not found', try to create the user
-        if (error.code === 'PGRST116') {
-          console.log('User not found, attempting to create new user');
-          const { data: insertData, error: insertError } = await supabase
-            .from('users')
-            .insert([
-              {
-                id: user.id,
-                email: user.email,
-                is_admin: user.email === 'naifhomood@gmail.com',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              }
-            ])
-            .select()
-            .single();
-
-          console.log('Insert result:', { insertData, insertError });
-
-          if (insertError) {
-            console.error('Error creating user:', insertError);
-            setIsAdmin(false);
-          } else {
-            console.log('User created successfully:', insertData);
-            setIsAdmin(insertData?.is_admin || false);
-          }
-        } else {
-          console.error('Error checking admin status:', error);
-          setIsAdmin(false);
-        }
-      } else {
-        console.log('Found existing user:', data);
-        setIsAdmin(data?.is_admin || false);
-      }
-    } catch (err) {
-      console.error('Error in checkAdminStatus:', err);
+      if (error) throw error;
+      setIsAdmin(data?.is_admin || false);
+    } catch (error) {
+      console.error('Error checking admin status:', error);
       setIsAdmin(false);
-    } finally {
-      console.log('Finishing checkAdminStatus, setting loading to false');
-      setLoading(false);
     }
   };
 
@@ -250,58 +122,25 @@ function App() {
     };
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="text-center">
-          <div className="loading-spinner mx-auto mb-4"></div>
-          <p className="text-gray-600">جاري تحميل التطبيق...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="text-center p-8 bg-white rounded-lg shadow-md">
-          <div className="text-red-600 text-xl mb-4">⚠️ حدث خطأ</div>
-          <p className="text-gray-600">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-          >
-            إعادة المحاولة
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   if (!session) {
     return (
       <div className="auth-container">
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="p-8 bg-white rounded-lg shadow-md w-96">
-            <Auth
-              supabaseClient={supabase}
-              appearance={{ theme: ThemeSupa }}
-              providers={[]}
-              redirectTo={window.location.origin + window.location.pathname}
-              magicLink={true}
-              view="magic_link"
-              localization={{
-                variables: {
-                  magic_link: {
-                    button_label: "أرسل رابط تسجيل الدخول",
-                    loading_button_label: "جاري إرسال الرابط...",
-                    confirmation_text: "تحقق من بريدك الإلكتروني للحصول على رابط تسجيل الدخول",
-                  }
-                }
-              }}
-            />
-          </div>
-        </div>
+        <Auth 
+          supabaseClient={supabase} 
+          appearance={{ theme: ThemeSupa }}
+          providers={[]}
+          view="magic_link"
+          localization={{
+            variables: {
+              magic_link: {
+                button_label: "إرسال رابط تسجيل الدخول",
+                loading_button_label: "جاري إرسال الرابط...",
+                confirmation_text: "تحقق من بريدك الإلكتروني للحصول على رابط تسجيل الدخول",
+                error_message: "حدث خطأ أثناء إرسال الرابط"
+              } as MagicLinkMessages
+            }
+          }}
+        />
       </div>
     );
   }
@@ -325,7 +164,7 @@ function App() {
             )}
             <button 
               className="logout-button"
-              onClick={() => handleSignOut()}
+              onClick={() => supabase.auth.signOut()}
             >
               تسجيل الخروج
             </button>
@@ -380,16 +219,5 @@ function App() {
     </div>
   );
 }
-
-const handleSignOut = async () => {
-  try {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    window.location.href = 'https://naifhomood.github.io/supabase-app/';
-  } catch (err) {
-    console.error('Error signing out:', err);
-    setError(err instanceof Error ? err.message : 'An error occurred while signing out');
-  }
-};
 
 export default App;
