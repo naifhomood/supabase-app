@@ -5,19 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/supabase-app/',
-  build: {
-    outDir: 'dist',
-    assetsDir: 'assets',
-    sourcemap: true,
-    rollupOptions: {
-      output: {
-        manualChunks: undefined
-      }
-    }
-  },
   server: {
-    port: 9000,
-    host: '0.0.0.0',
-    open: true
+    port: 3000
   }
 })

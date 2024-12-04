@@ -156,11 +156,12 @@ function App() {
   const checkAdminStatus = async (user: User) => {
     try {
       console.log('Starting checkAdminStatus for user:', user.email);
+      console.log('User ID:', user.id);
       
       // First, try to get the user's admin status
       const { data, error } = await supabase
         .from('users')
-        .select('is_admin')
+        .select('*')  // Select all columns for debugging
         .eq('id', user.id)
         .single();
 
@@ -169,37 +170,43 @@ function App() {
       if (error) {
         // If error is 'not found', try to create the user
         if (error.code === 'PGRST116') {
-          console.log('User not found, creating new user');
-          const { error: insertError } = await supabase
+          console.log('User not found, attempting to create new user');
+          const { data: insertData, error: insertError } = await supabase
             .from('users')
             .insert([
               {
                 id: user.id,
                 email: user.email,
-                is_admin: user.email === 'naifhomood@gmail.com'
+                is_admin: user.email === 'naifhomood@gmail.com',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
               }
-            ]);
+            ])
+            .select()
+            .single();
+
+          console.log('Insert result:', { insertData, insertError });
 
           if (insertError) {
             console.error('Error creating user:', insertError);
             setIsAdmin(false);
           } else {
-            console.log('User created successfully');
-            setIsAdmin(user.email === 'naifhomood@gmail.com');
+            console.log('User created successfully:', insertData);
+            setIsAdmin(insertData?.is_admin || false);
           }
         } else {
           console.error('Error checking admin status:', error);
           setIsAdmin(false);
         }
       } else {
-        console.log('Setting admin status:', data?.is_admin);
+        console.log('Found existing user:', data);
         setIsAdmin(data?.is_admin || false);
       }
     } catch (err) {
       console.error('Error in checkAdminStatus:', err);
       setIsAdmin(false);
     } finally {
-      console.log('Finishing checkAdminStatus');
+      console.log('Finishing checkAdminStatus, setting loading to false');
       setLoading(false);
     }
   };
