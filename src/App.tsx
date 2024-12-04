@@ -28,6 +28,8 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showThemeSettings, setShowThemeSettings] = useState(false);
   const [showEmailManagement, setShowEmailManagement] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [themeSettings, setThemeSettings] = useState<ThemeSettings>({
     header_bg: '#ffffff',
     header_text: '#000000',
@@ -39,12 +41,26 @@ function App() {
 
   useEffect(() => {
     const fetchSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data && 'session' in data && data.session) {
-        setSession(data.session);
-        if (data.session.user) {
-          await checkAdminStatus(data.session.user);
+      try {
+        setIsLoading(true);
+        setError(null);
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          throw sessionError;
         }
+
+        if (data && 'session' in data && data.session) {
+          setSession(data.session);
+          if (data.session.user) {
+            await checkAdminStatus(data.session.user);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching session:', err);
+        setError(err instanceof Error ? err.message : 'حدث خطأ أثناء تحميل الجلسة');
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -85,18 +101,26 @@ function App() {
 
   useEffect(() => {
     const fetchThemeSettings = async () => {
-      const { data, error } = await supabase
-        .from('theme_settings')
-        .select('*')
-        .single();
+      try {
+        setIsLoading(true);
+        setError(null);
+        const { data, error } = await supabase
+          .from('theme_settings')
+          .select('*')
+          .single();
 
-      if (error) {
-        console.error('Error fetching theme settings:', error);
-        return;
-      }
+        if (error) {
+          throw error;
+        }
 
-      if (data) {
-        setThemeSettings(data);
+        if (data) {
+          setThemeSettings(data);
+        }
+      } catch (err) {
+        console.error('Error fetching theme settings:', err);
+        setError(err instanceof Error ? err.message : 'حدث خطأ أثناء تحميل إعدادات المظهر');
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -121,6 +145,67 @@ function App() {
       themeSubscription.unsubscribe();
     };
   }, []);
+
+  if (isLoading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        backgroundColor: themeSettings.board_bg 
+      }}>
+        <div style={{
+          padding: '20px',
+          borderRadius: '8px',
+          backgroundColor: 'white',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          textAlign: 'center'
+        }}>
+          <h2 style={{ marginBottom: '10px', color: themeSettings.header_text }}>جاري تحميل التطبيق...</h2>
+          <p style={{ color: '#666' }}>يرجى الانتظار قليلاً</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        backgroundColor: themeSettings.board_bg 
+      }}>
+        <div style={{
+          padding: '20px',
+          borderRadius: '8px',
+          backgroundColor: 'white',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          textAlign: 'center'
+        }}>
+          <h2 style={{ marginBottom: '10px', color: 'red' }}>حدث خطأ</h2>
+          <p style={{ color: '#666' }}>{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            style={{
+              marginTop: '10px',
+              padding: '8px 16px',
+              backgroundColor: themeSettings.header_bg,
+              color: themeSettings.header_text,
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            إعادة المحاولة
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return (
